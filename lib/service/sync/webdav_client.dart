@@ -38,7 +38,9 @@ class WebdavClient extends SyncClientBase {
         'accept-charset': 'utf-8',
         'Content-Type': 'application/octet-stream'
       })
-      ..setConnectTimeout(8000);
+      ..setConnectTimeout(15000)  // Increased from 8s to 15s for remote servers
+      ..setSendTimeout(30000)     // Add send timeout for large files
+      ..setReceiveTimeout(30000); // Add receive timeout for downloads
 
     // Apply opt-in custom CA / self-signed trust to the WebDAV Dio client.
     // HttpOverrides covers most HttpClient usage; set adapter explicitly too.
@@ -97,11 +99,17 @@ class WebdavClient extends SyncClientBase {
 
       // 2. Create remote test directory
       try {
-        await mkdirAll(testDir);
-        AnxLog.info('WebDAV full test: Created remote directory');
+        // Check if test directory already exists
+        final exists = await isExist(testDir);
+        if (exists) {
+          AnxLog.info('WebDAV full test: Test directory already exists, skipping creation');
+        } else {
+          await mkdirAll(testDir);
+          AnxLog.info('WebDAV full test: Created remote directory');
+        }
       } catch (e) {
         AnxLog.severe('WebDAV full test: Failed to create directory: $e');
-        throw Exception('Failed to create test directory');
+        throw Exception('Failed to create test directory: $e');
       }
 
       // 3. Upload test file
@@ -181,7 +189,14 @@ class WebdavClient extends SyncClientBase {
 
   @override
   Future<void> mkdirAll(String path) async {
-    await _client.mkdirAll(path);
+    AnxLog.info('WebDAV mkdirAll: Creating directory $path');
+    try {
+      await _client.mkdirAll(path);
+      AnxLog.info('WebDAV mkdirAll: Successfully created $path');
+    } catch (e) {
+      AnxLog.severe('WebDAV mkdirAll: Failed to create $path: $e');
+      rethrow;
+    }
   }
 
   @override

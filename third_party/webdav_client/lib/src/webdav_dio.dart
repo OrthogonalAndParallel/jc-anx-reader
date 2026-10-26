@@ -89,8 +89,19 @@ class WdDio with DioMixin implements Dio {
     );
 
     if (resp.statusCode == 401) {
-      String? w3AHeader = resp.headers.value('www-authenticate');
-      String? lowerW3AHeader = w3AHeader?.toLowerCase();
+      // Handle multiple www-authenticate headers (e.g., Basic and Digest)
+      final authHeaders = resp.headers.map['www-authenticate'];
+      String? w3AHeader;
+      String? lowerW3AHeader;
+
+      if (authHeaders != null && authHeaders.isNotEmpty) {
+        // Prefer Digest over Basic, or use the first available
+        w3AHeader = authHeaders.firstWhere(
+          (h) => h.toLowerCase().contains('digest'),
+          orElse: () => authHeaders.first,
+        );
+        lowerW3AHeader = w3AHeader.toLowerCase();
+      }
 
       // before is noAuth
       if (self.auth.type == AuthType.NoAuth) {
